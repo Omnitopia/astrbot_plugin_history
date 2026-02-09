@@ -37,8 +37,17 @@ class Main(Star):
         super().__init__(context)
         self.config = config or {}
 
-        # 使用官方 API 获取数据目录
-        self.data_dir = Path(self.context.get_data_dir()) / "history_backup"
+        # 获取插件数据目录 - 遵循 AstrBot 插件存储规范
+        # 大文件应存储于 data/plugin_data/{plugin_name}/ 目录下
+        plugin_name = getattr(self, "name", "astrbot_plugin_history")
+        try:
+            from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+
+            self.data_dir = Path(get_astrbot_data_path()) / "plugin_data" / plugin_name
+        except ImportError:
+            # 兼容性处理：如果导入失败，使用相对路径
+            self.data_dir = Path("data") / "plugin_data" / plugin_name
+
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"📦 聊天记录备份插件已加载，数据目录: {self.data_dir}")
