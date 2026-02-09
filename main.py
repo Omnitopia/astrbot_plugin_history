@@ -36,6 +36,7 @@ class Main(Star):
         """
         super().__init__(context)
         self.config = config or {}
+        self.web_server = None
 
         # 获取插件数据目录 - 遵循 AstrBot 插件存储规范
         # 大文件应存储于 data/plugin_data/{plugin_name}/ 目录下
@@ -51,6 +52,18 @@ class Main(Star):
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"📦 聊天记录备份插件已加载，数据目录: {self.data_dir}")
+
+    async def initialize(self):
+        """插件初始化 - 启动 WebUI"""
+        if self.config.get("enable_webui", True):
+            try:
+                from .web_server import WebServer
+
+                port = self.config.get("webui_port", 8866)
+                self.web_server = WebServer(self, port=port)
+                await self.web_server.start()
+            except Exception as e:
+                logger.error(f"❌ WebUI 启动失败: {e}", exc_info=True)
 
     def _get_file_path(self, chat_id: str, is_group: bool) -> Path:
         """获取备份文件路径
@@ -309,4 +322,6 @@ class Main(Star):
 
     async def terminate(self):
         """插件卸载时的清理工作"""
+        if self.web_server:
+            await self.web_server.stop()
         logger.info("📦 聊天记录备份插件已卸载")

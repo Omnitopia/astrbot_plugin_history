@@ -28,5 +28,15 @@
         "description": "单个备份文件的最大大小（MB），超过后会创建新文件",
         "type": "int",
         "default": 10
+    },
+    "enable_webui": {
+        "description": "是否启用 WebUI 浏览界面",
+        "type": "bool",
+        "default": true
+    },
+    "webui_port": {
+        "description": "WebUI 端口号（访问地址: http://你的服务器IP:端口号）",
+        "type": "int",
+        "default": 8866
     }
 }
