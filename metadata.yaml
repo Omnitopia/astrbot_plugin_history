@@ -1,11 +1,11 @@
 name: astrbot_plugin_history
 display_name: 聊天记录备份
-desc: 实时备份聊天记录，防止对话历史丢失。支持 WebUI 浏览。
+desc: 实时备份聊天记录，防止对话历史丢失。
 help: |
   📦 功能说明：
   - 自动备份所有聊天记录（私聊 + 群聊）
-  - 按 QQ 号分类保存为 JSON 文件
-  - 支持在 WebUI 中浏览历史记录
+  - 按 QQ 号/群号分类保存为 JSON 文件
+  - 实时保存，不会丢失任何消息
   
   ⚙️ 配置项：
   - enable_private: 是否备份私聊
