@@ -27,6 +27,6 @@
     "max_file_size_mb": {
         "description": "单个备份文件的最大大小（MB），超过后会创建新文件",
         "type": "int",
-        "default": 50
+        "default": 10
     }
 }

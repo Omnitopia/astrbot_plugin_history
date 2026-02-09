@@ -3,7 +3,7 @@ AstrBot Plugin: 聊天记录备份
 ============================
 实时备份聊天记录，防止对话历史丢失。
 
-作者: OmniTopia (https://github.com/OmniTopia)
+作者: OmniTopia (https://github.com/Omnitopia)
 """
 
 import json
@@ -18,39 +18,77 @@ from astrbot.api.star import Context, Star
 
 
 class Main(Star):
-    """聊天记录备份插件"""
+    """聊天记录备份插件
+    
+    功能：
+    - 实时监听并备份所有聊天消息（用户消息 + 机器人回复）
+    - 按 QQ 号/群号分类存储为 JSONL 文件
+    - 支持群聊白名单/黑名单配置
+    - 自动文件轮转（超过指定大小时创建新文件）
+    """
     
     def __init__(self, context: Context, config: AstrBotConfig = None):
+        """初始化插件
+        
+        Args:
+            context: AstrBot 上下文对象
+            config: 插件配置
+        """
         super().__init__(context)
         self.config = config or {}
         
-        # 获取插件数据目录
-        plugin_name = getattr(self, "name", "astrbot_plugin_history")
-        try:
-            from astrbot.core.utils.astrbot_path import get_astrbot_data_path
-            self.data_dir = Path(get_astrbot_data_path()) / "plugin_data" / plugin_name
-        except ImportError:
-            self.data_dir = Path("data") / "plugin_data" / plugin_name
-        
+        # 使用官方 API 获取数据目录
+        self.data_dir = Path(self.context.get_data_dir()) / "history_backup"
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        
         logger.info(f"📦 聊天记录备份插件已加载，数据目录: {self.data_dir}")
     
     def _get_file_path(self, chat_id: str, is_group: bool) -> Path:
-        """获取备份文件路径"""
+        """获取备份文件路径
+        
+        Args:
+            chat_id: 聊天 ID（QQ 号或群号）
+            is_group: 是否为群聊
+            
+        Returns:
+            Path: 备份文件路径
+        """
         msg_type = "group" if is_group else "private"
-        filename = f"{chat_id}_{msg_type}.json"
+        # 使用 JSONL 格式，每行一条记录，便于追加写入
+        filename = f"{chat_id}_{msg_type}.jsonl"
         return self.data_dir / filename
     
-    def _should_rotate_file(self, file_path: Path) -> bool:
-        """检查是否需要轮转文件（超过最大大小）"""
-        if not file_path.exists():
-            return False
+    def _get_file_size_mb(self, file_path: Path) -> float:
+        """获取文件大小（MB）
         
-        max_size = self.config.get("max_file_size_mb", 50) * 1024 * 1024
-        return file_path.stat().st_size > max_size
+        Args:
+            file_path: 文件路径
+            
+        Returns:
+            float: 文件大小（MB）
+        """
+        if not file_path.exists():
+            return 0.0
+        return file_path.stat().st_size / (1024 * 1024)
     
-    def _rotate_file(self, file_path: Path):
-        """轮转文件（重命名为带时间戳的文件）"""
+    def _should_rotate_file(self, file_path: Path) -> bool:
+        """检查是否需要轮转文件（超过最大大小）
+        
+        Args:
+            file_path: 文件路径
+            
+        Returns:
+            bool: 是否需要轮转
+        """
+        max_size = self.config.get("max_file_size_mb", 10)  # 默认 10MB
+        return self._get_file_size_mb(file_path) > max_size
+    
+    def _rotate_file(self, file_path: Path) -> None:
+        """轮转文件（重命名为带时间戳的文件）
+        
+        Args:
+            file_path: 需要轮转的文件路径
+        """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         new_name = file_path.stem + f"_{timestamp}" + file_path.suffix
         new_path = file_path.parent / new_name
@@ -65,8 +103,17 @@ class Main(Star):
         content: str,
         sender_id: Optional[str] = None,
         sender_name: Optional[str] = None
-    ):
-        """保存单条消息到文件"""
+    ) -> None:
+        """保存单条消息到文件（追加写入 JSONL 格式）
+        
+        Args:
+            chat_id: 聊天 ID
+            is_group: 是否为群聊
+            role: 消息角色（user/assistant）
+            content: 消息内容
+            sender_id: 发送者 ID（可选）
+            sender_name: 发送者昵称（可选）
+        """
         file_path = self._get_file_path(chat_id, is_group)
         
         # 检查是否需要轮转
@@ -86,36 +133,27 @@ class Main(Star):
                 message["sender_id"] = sender_id
             if sender_name:
                 message["sender_name"] = sender_name
+            if is_group:
+                message["group_id"] = chat_id
         
-        # 读取或创建文件
+        # 追加写入 JSONL 格式（每行一条 JSON 记录）
         try:
-            if file_path.exists():
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            else:
-                data = {
-                    "messages": [],
-                    "metadata": {
-                        "created_at": datetime.now().isoformat(),
-                        "type": "group" if is_group else "private",
-                        "id": chat_id
-                    }
-                }
-            
-            # 追加消息
-            data["messages"].append(message)
-            data["metadata"]["updated_at"] = datetime.now().isoformat()
-            data["metadata"]["message_count"] = len(data["messages"])
-            
-            # 写回文件
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-                
-        except Exception as e:
-            logger.error(f"❌ 保存消息失败: {e}")
+            with open(file_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(message, ensure_ascii=False) + '\n')
+        except IOError as e:
+            logger.error(f"❌ 写入文件失败: {e}", exc_info=True)
+        except (TypeError, ValueError) as e:
+            logger.error(f"❌ JSON 序列化失败: {e}", exc_info=True)
     
     def _extract_text(self, event: AstrMessageEvent) -> str:
-        """从事件中提取文本内容"""
+        """从事件中提取文本内容
+        
+        Args:
+            event: 消息事件对象
+            
+        Returns:
+            str: 提取的文本内容
+        """
         try:
             message = event.message_obj
             if not message:
@@ -127,21 +165,37 @@ class Main(Star):
                     text_parts.append(seg.text)
             
             return ' '.join(text_parts).strip()
-        except Exception:
+        except AttributeError as e:
+            logger.debug(f"提取文本时属性错误: {e}")
             return ""
     
     def _is_group(self, event: AstrMessageEvent) -> bool:
-        """判断是否为群聊消息"""
+        """判断是否为群聊消息
+        
+        Args:
+            event: 消息事件对象
+            
+        Returns:
+            bool: 是否为群聊
+        """
         try:
             if hasattr(event, 'is_group_message'):
                 return event.is_group_message()
             group_id = event.get_group_id()
             return group_id is not None and group_id != ""
-        except Exception:
+        except AttributeError:
             return False
     
     def _should_backup(self, event: AstrMessageEvent, is_group: bool) -> bool:
-        """检查是否应该备份该消息"""
+        """检查是否应该备份该消息
+        
+        Args:
+            event: 消息事件对象
+            is_group: 是否为群聊
+            
+        Returns:
+            bool: 是否应该备份
+        """
         # 检查是否启用对应类型的备份
         if is_group and not self.config.get("enable_group", True):
             return False
@@ -164,7 +218,11 @@ class Main(Star):
     @filter.event_message_type(EventMessageType.ALL)
     @filter.platform_adapter_type(PlatformAdapterType.ALL)
     async def on_message(self, event: AstrMessageEvent):
-        """监听接收到的消息"""
+        """监听接收到的消息
+        
+        Args:
+            event: 消息事件对象
+        """
         try:
             is_group = self._is_group(event)
             
@@ -194,12 +252,18 @@ class Main(Star):
                 sender_name=sender_name
             )
             
+        except AttributeError as e:
+            logger.error(f"❌ 处理消息时属性错误: {e}", exc_info=True)
         except Exception as e:
-            logger.error(f"❌ 处理消息失败: {e}")
+            logger.error(f"❌ 处理消息失败: {e}", exc_info=True)
     
     @filter.on_decorating_result()
     async def on_bot_response(self, event: AstrMessageEvent):
-        """监听机器人的回复"""
+        """监听机器人的回复
+        
+        Args:
+            event: 消息事件对象
+        """
         try:
             result = event.get_result()
             if not result or not result.chain:
@@ -232,8 +296,10 @@ class Main(Star):
                 content=content
             )
             
+        except AttributeError as e:
+            logger.error(f"❌ 保存回复时属性错误: {e}", exc_info=True)
         except Exception as e:
-            logger.error(f"❌ 保存机器人回复失败: {e}")
+            logger.error(f"❌ 保存机器人回复失败: {e}", exc_info=True)
     
     async def terminate(self):
         """插件卸载时的清理工作"""
