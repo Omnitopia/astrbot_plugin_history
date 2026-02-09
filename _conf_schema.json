@@ -1,0 +1,32 @@
+{
+    "enable_private": {
+        "description": "是否备份私聊消息",
+        "type": "bool",
+        "default": true
+    },
+    "enable_group": {
+        "description": "是否备份群聊消息",
+        "type": "bool",
+        "default": true
+    },
+    "group_whitelist": {
+        "description": "群聊白名单（QQ群号列表，为空则备份所有群）",
+        "type": "list",
+        "default": []
+    },
+    "group_blacklist": {
+        "description": "群聊黑名单（QQ群号列表，在黑名单中的群不备份）",
+        "type": "list",
+        "default": []
+    },
+    "save_system_info": {
+        "description": "是否保存系统信息（时间戳、发送者昵称等）",
+        "type": "bool",
+        "default": true
+    },
+    "max_file_size_mb": {
+        "description": "单个备份文件的最大大小（MB），超过后会创建新文件",
+        "type": "int",
+        "default": 50
+    }
+}

@@ -1,0 +1,20 @@
+name: astrbot_plugin_history
+display_name: 聊天记录备份
+desc: 实时备份聊天记录，防止对话历史丢失。支持 WebUI 浏览。
+help: |
+  📦 功能说明：
+  - 自动备份所有聊天记录（私聊 + 群聊）
+  - 按 QQ 号分类保存为 JSON 文件
+  - 支持在 WebUI 中浏览历史记录
+  
+  ⚙️ 配置项：
+  - enable_private: 是否备份私聊
+  - enable_group: 是否备份群聊
+  - group_whitelist: 群聊白名单（为空则全部备份）
+  - group_blacklist: 群聊黑名单
+  
+  📁 数据位置：
+  {astrbot_data}/plugin_data/astrbot_plugin_history/
+version: v0.1.0
+author: OmniTopia
+repo: https://github.com/OmniTopia/astrbot_plugin_history
