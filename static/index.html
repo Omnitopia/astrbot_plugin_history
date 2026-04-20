@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦊 聊天记录在此！</title>
+    <style>
+        :root {
+            --primary: #E86A33;
+            --primary-light: #F49A6C;
+            --bg: #FAF8F5;
+            --card-bg: #FFFFFF;
+            --text: #3E3832;
+            --text-secondary: #8B7E74;
+            --border: #E8DED4;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .app {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* 左侧面板 - 会话列表 */
+        .sidebar {
+            width: 350px;
+            background: var(--card-bg);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        
+        .sidebar-header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .sidebar-header h1 {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+        
+        .sidebar-header p {
+            opacity: 0.9;
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+        
+        /* 统计卡片 */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .stat-card {
+            text-align: center;
+            padding: 8px;
+        }
+        
+        .stat-card .value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .stat-card .label {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+        }
+        
+        /* 筛选标签 */
+        .filter-tabs {
+            display: flex;
+            padding: 12px;
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .filter-tab {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg);
+            cursor: pointer;
+            text-align: center;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        
+        .filter-tab:hover {
+            border-color: var(--primary);
+        }
+        
+        .filter-tab.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        /* 会话列表 */
+        .chat-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        
+        .chat-item {
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 4px;
+        }
+        
+        .chat-item:hover {
+            background: var(--bg);
+        }
+        
+        .chat-item.active {
+            background: #FFF5ED;
+            border-left: 3px solid var(--primary);
+        }
+        
+        .chat-item h3 {
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .chat-item .preview {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .chat-item .meta {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 4px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        
+        .type-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+        }
+        
+        .type-private { background: #E3F2FD; color: #1976D2; }
+        .type-group { background: #E8F5E9; color: #388E3C; }
+        
+        /* 右侧面板 - 消息详情 */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg);
+        }
+        
+        .main-header {
+            padding: 16px 20px;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .main-header h2 {
+            font-size: 1.1rem;
+        }
+        
+        .main-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .message {
+            margin-bottom: 16px;
+            max-width: 80%;
+        }
+        
+        .message.user {
+            margin-left: auto;
+        }
+        
+        .message.assistant {
+            margin-right: auto;
+        }
+        
+        .message .bubble {
+            padding: 12px 16px;
+            border-radius: 16px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        .message.user .bubble {
+            background: #E3F2FD;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.assistant .bubble {
+            background: #FFF3E0;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message .meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            padding: 0 4px;
+        }
+        
+        .message.user .meta {
+            text-align: right;
+        }
+        
+        .load-more {
+            text-align: center;
+            padding: 16px;
+        }
+        
+        .load-more button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .load-more button:hover {
+            background: var(--primary-light);
+        }
+        
+        .empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-secondary);
+        }
+        
+        .empty .icon { font-size: 4rem; margin-bottom: 16px; }
+        
+        .welcome {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-secondary);
+        }
+        
+        .welcome .icon { font-size: 5rem; margin-bottom: 16px; }
+        .welcome h3 { margin-bottom: 8px; color: var(--text); }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- 左侧：会话列表 -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>🦊 聊天记录在此！</h1>
+                <p>Made with ❤️ by OmniTopia</p>
+            </div>
+            
+            <div class="stats" id="stats"></div>
+            
+            <div class="filter-tabs">
+                <div class="filter-tab active" data-type="all" onclick="filterChats('all')">全部</div>
+                <div class="filter-tab" data-type="private" onclick="filterChats('private')">私聊</div>
+                <div class="filter-tab" data-type="group" onclick="filterChats('group')">群聊</div>
+            </div>
+            
+            <div class="chat-list" id="chatList"></div>
+        </div>
+        
+        <!-- 右侧：消息详情 -->
+        <div class="main">
+            <div class="main-header" id="mainHeader" style="display: none;">
+                <h2 id="chatTitle">选择一个会话</h2>
+                <span id="chatMeta"></span>
+            </div>
+            <div class="main-body" id="mainBody">
+                <div class="welcome">
+                    <div class="icon">💬</div>
+                    <h3>选择一个会话</h3>
+                    <p>点击左侧会话查看聊天记录</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentChat = null;
+        let currentPage = 1;
+        let currentFilter = 'all';
+        
+        async function loadStats() {
+            const res = await fetch('/api/stats');
+            const stats = await res.json();
+            document.getElementById('stats').innerHTML = `
+                <div class="stat-card">
+                    <div class="value">${stats.total_messages}</div>
+                    <div class="label">消息</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">${stats.private_chats}</div>
+                    <div class="label">私聊</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">${stats.group_chats}</div>
+                    <div class="label">群聊</div>
+                </div>
+            `;
+        }
+        
+        async function loadChats() {
+            const res = await fetch(`/api/chats?type=${currentFilter}`);
+            const chats = await res.json();
+            const list = document.getElementById('chatList');
+            
+            if (chats.length === 0) {
+                list.innerHTML = `
+                    <div class="empty">
+                        <div class="icon">📭</div>
+                        <p>暂无聊天记录</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            list.innerHTML = chats.map(chat => `
+                <div class="chat-item ${currentChat === chat.filename ? 'active' : ''}" 
+                     onclick="openChat('${chat.filename}', '${chat.chat_id}', '${chat.type}', ${chat.message_count})">
+                    <h3>
+                        ${chat.chat_id}
+                        <span class="type-badge type-${chat.type}">${chat.type === 'private' ? '私聊' : '群聊'}</span>
+                    </h3>
+                    <div class="preview">${chat.last_message || '暂无消息'}</div>
+                    <div class="meta">
+                        <span>${chat.message_count} 条</span>
+                        <span>${chat.size_kb} KB</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function filterChats(type) {
+            currentFilter = type;
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.type === type);
+            });
+            loadChats();
+        }
+        
+        async function openChat(filename, chatId, type, count) {
+            currentChat = filename;
+            currentPage = 1;
+            
+            // 更新左侧选中状态
+            document.querySelectorAll('.chat-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            // 更新头部
+            document.getElementById('mainHeader').style.display = 'flex';
+            document.getElementById('chatTitle').textContent = `${chatId} (${type === 'private' ? '私聊' : '群聊'})`;
+            document.getElementById('chatMeta').textContent = `${count} 条消息`;
+            
+            await loadMessages();
+        }
+        
+        async function loadMessages(append = false) {
+            const res = await fetch(`/api/chat/${currentChat}?page=${currentPage}&size=50`);
+            const data = await res.json();
+            const body = document.getElementById('mainBody');
+            
+            const html = data.messages.map(msg => `
+                <div class="message ${msg.role}">
+                    <div class="bubble">${escapeHtml(msg.content)}</div>
+                    <div class="meta">
+                        ${msg.sender_name || msg.role} · ${formatTime(msg.timestamp)}
+                    </div>
+                </div>
+            `).join('');
+            
+            const hasMore = currentPage * 50 < data.total;
+            const loadMoreHtml = hasMore ? `
+                <div class="load-more">
+                    <button onclick="loadMore()">加载更多</button>
+                </div>
+            ` : '';
+            
+            if (append) {
+                const loadMoreBtn = body.querySelector('.load-more');
+                if (loadMoreBtn) loadMoreBtn.remove();
+                body.insertAdjacentHTML('beforeend', html + loadMoreHtml);
+            } else {
+                body.innerHTML = html + loadMoreHtml;
+            }
+        }
+        
+        function loadMore() {
+            currentPage++;
+            loadMessages(true);
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatTime(ts) {
+            if (!ts) return '';
+            const d = new Date(ts);
+            return d.toLocaleString('zh-CN', { 
+                month: '2-digit', day: '2-digit', 
+                hour: '2-digit', minute: '2-digit' 
+            });
+        }
+        
+        // 初始化
+        loadStats();
+        loadChats();
+    </script>
+</body>
+</html>

@@ -7,13 +7,14 @@ AstrBot Plugin: 聊天记录备份
 """
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from astrbot.api import logger, AstrBotConfig
+from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.event.filter import EventMessageType, PlatformAdapterType
+from astrbot.api.event.filter import EventMessageType
 from astrbot.api.star import Context, Star
 
 
@@ -27,7 +28,7 @@ class Main(Star):
     - 自动文件轮转（超过指定大小时创建新文件）
     """
 
-    def __init__(self, context: Context, config: AstrBotConfig = None):
+    def __init__(self, context: Context, config: dict = None):
         """初始化插件
 
         Args:
@@ -39,15 +40,19 @@ class Main(Star):
         self.web_server = None
 
         # 获取插件数据目录 - 遵循 AstrBot 插件存储规范
-        # 大文件应存储于 data/plugin_data/{plugin_name}/ 目录下
         plugin_name = getattr(self, "name", "astrbot_plugin_history")
         try:
-            from astrbot.core.utils.astrbot_path import get_astrbot_data_path
-
-            self.data_dir = Path(get_astrbot_data_path()) / "plugin_data" / plugin_name
-        except ImportError:
-            # 兼容性处理：如果导入失败，使用相对路径
-            self.data_dir = Path("data") / "plugin_data" / plugin_name
+            # 优先使用官方 API 获取 (AstrBot 较新版本)
+            from astrbot.api.all import StarTools
+            self.data_dir = StarTools.get_data_dir(plugin_name)
+        except Exception:
+            try:
+                # 兼容稍旧版本代码
+                from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+                self.data_dir = Path(get_astrbot_data_path()) / "plugin_data" / plugin_name
+            except ImportError:
+                # 极端旧版本，降级为相对路径
+                self.data_dir = Path("data") / "plugin_data" / plugin_name
 
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -177,16 +182,38 @@ class Main(Star):
             str: 提取的文本内容
         """
         try:
-            message = event.message_obj
-            if not message:
-                return ""
+            content = getattr(event, "message_str", "")
+            if not content:
+                # 兼容旧版本获取方式
+                message = getattr(event, "message_obj", None)
+                if not message:
+                    return ""
 
-            text_parts = []
-            for seg in message.message:
-                if hasattr(seg, "text") and seg.text:
-                    text_parts.append(seg.text)
+                text_parts = []
+                for seg in getattr(message, "message", []):
+                    seg_type = getattr(seg, "type", None)
 
-            return " ".join(text_parts).strip()
+                    # 跳过 reply 类型的消息段（引用消息的元数据）
+                    if seg_type == "reply":
+                        continue
+
+                    # 提取文本
+                    if hasattr(seg, "text") and seg.text:
+                        text = seg.text.strip()
+                        if text:
+                            text_parts.append(text)
+
+                content = " ".join(text_parts).strip()
+
+            # 过滤 @昵称(QQ号) 格式
+            content = re.sub(r"@[^\(]+\(\d+\)\s*", "", content)
+
+            # 过滤系统提示（冗余信息）
+            content = re.sub(
+                r"\[系统提示[：:][^\]]*\]\s*", "", content, flags=re.DOTALL
+            )
+
+            return content.strip()
         except AttributeError as e:
             logger.debug(f"提取文本时属性错误: {e}")
             return ""
@@ -201,8 +228,19 @@ class Main(Star):
             bool: 是否为群聊
         """
         try:
+            # 优先使用 message_obj.group_id 判断
+            if hasattr(event, "message_obj") and event.message_obj:
+                msg_obj = event.message_obj
+                if hasattr(msg_obj, "group_id") and msg_obj.group_id:
+                    return True
+            
+            # 其次检查 is_group_message 方法
             if hasattr(event, "is_group_message"):
-                return event.is_group_message()
+                result = event.is_group_message()
+                if result:
+                    return True
+            
+            # 最后检查 get_group_id
             group_id = event.get_group_id()
             return group_id is not None and group_id != ""
         except AttributeError:
@@ -226,9 +264,9 @@ class Main(Star):
 
         # 检查群聊白名单/黑名单
         if is_group:
-            group_id = event.get_group_id()
-            whitelist = self.config.get("group_whitelist", [])
-            blacklist = self.config.get("group_blacklist", [])
+            group_id = str(event.get_group_id() or "")
+            whitelist = [str(x) for x in self.config.get("group_whitelist", [])]
+            blacklist = [str(x) for x in self.config.get("group_blacklist", [])]
 
             if whitelist and group_id not in whitelist:
                 return False
@@ -238,8 +276,7 @@ class Main(Star):
         return True
 
     @filter.event_message_type(EventMessageType.ALL)
-    @filter.platform_adapter_type(PlatformAdapterType.ALL)
-    async def on_message(self, event: AstrMessageEvent):
+    async def on_message(self, event: AstrMessageEvent, *args, **kwargs):
         """监听接收到的消息
 
         Args:
@@ -280,7 +317,7 @@ class Main(Star):
             logger.error(f"❌ 处理消息失败: {e}", exc_info=True)
 
     @filter.on_decorating_result()
-    async def on_bot_response(self, event: AstrMessageEvent):
+    async def on_bot_response(self, event: AstrMessageEvent, *args, **kwargs):
         """监听机器人的回复
 
         Args:
